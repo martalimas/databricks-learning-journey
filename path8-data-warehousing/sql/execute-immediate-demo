@@ -1,0 +1,222 @@
+-- =============================================================================
+-- EXECUTE IMMEDIATE — Demo Code (lecture slides)
+-- Módulo: SQL Programming and Procedural Logic
+-- Secção: SQL Constructs in Databricks
+-- Fonte: Databricks Learning Festival 2026 — Pathway 8
+-- =============================================================================
+-- Lab environment : bronze.*
+-- Community Edition: substitui bronze.orders -> samples.tpch.orders
+--
+-- ⚠️  EXECUTE IMMEDIATE requer um Databricks cluster (all-purpose).
+--     Não é suportado em SQL Warehouses / serverless compute.
+-- =============================================================================
+
+
+-- -----------------------------------------------------------------------------
+-- EXEMPLO BASE: padrão completo dos slides
+-- Query dinâmica parametrizada por nome de tabela e status filter
+-- -----------------------------------------------------------------------------
+
+-- Passo 1: Declarar variáveis de input (os "knobs and levers")
+DECLARE OR REPLACE table_name    STRING DEFAULT "bronze.orders";
+DECLARE OR REPLACE status_filter STRING DEFAULT "F";   -- F = Finalized
+
+-- Passo 2: Construir a query string com placeholders (?)
+-- Os (?) serão substituídos pelos valores do USING, pela mesma ordem
+DECLARE OR REPLACE sqlStr STRING DEFAULT
+  "SELECT o_orderpriority, COUNT(*) AS num_orders " ||
+  "FROM (?) WHERE o_orderstatus = (?) " ||
+  "GROUP BY o_orderpriority";
+
+-- Passo 3: Executar dinamicamente
+-- USING injeta os valores nos (?) de forma segura (parameter binding)
+EXECUTE IMMEDIATE sqlStr
+  USING table_name, status_filter;
+
+
+-- -----------------------------------------------------------------------------
+-- EXEMPLO 2: mudar os parâmetros para um contexto diferente
+-- Mesmo script, tabela diferente, status diferente
+-- -----------------------------------------------------------------------------
+
+-- Sobrescrever as variáveis para um novo contexto
+SET VAR table_name    = "bronze.orders";
+SET VAR status_filter = "O";   -- O = Open orders
+
+-- Reutilizar exatamente o mesmo sqlStr — sem tocar na lógica
+EXECUTE IMMEDIATE sqlStr
+  USING table_name, status_filter;
+
+
+-- -----------------------------------------------------------------------------
+-- EXEMPLO 3: query mais complexa — filtro dinâmico com agregação
+-- Útil para dashboards ou relatórios parametrizados
+-- -----------------------------------------------------------------------------
+
+DECLARE OR REPLACE region_filter STRING DEFAULT "EUROPE";
+
+DECLARE OR REPLACE sqlStr2 STRING DEFAULT
+  "SELECT n.n_name AS nation, COUNT(*) AS order_count, SUM(o.o_totalprice) AS revenue " ||
+  "FROM (?) o " ||
+  "JOIN bronze.customer c  ON o.o_custkey  = c.c_custkey " ||
+  "JOIN bronze.nation   n  ON c.c_nationkey = n.n_nationkey " ||
+  "JOIN bronze.region   r  ON n.n_regionkey = r.r_regionkey " ||
+  "WHERE r.r_name = (?) " ||
+  "GROUP BY n.n_name " ||
+  "ORDER BY revenue DESC";
+
+EXECUTE IMMEDIATE sqlStr2
+  USING table_name, region_filter;
+
+
+-- =============================================================================
+-- Resumo do padrão:
+--
+--   1. DECLARE OR REPLACE variavel TIPO DEFAULT valor;   ← inputs
+--   2. DECLARE OR REPLACE sqlStr STRING DEFAULT "..." || variavel || "...";
+--      -- usa (?) como placeholders para parameter binding seguro
+--   3. EXECUTE IMMEDIATE sqlStr USING var1, var2, ...;   ← execução
+--
+-- Casos de uso típicos:
+--   → Nome de tabela variável (bronze / silver / gold)
+--   → Filtros dinâmicos entre job runs
+--   → Mesmo script em dev / staging / prod
+--   → Dashboards com input do utilizador
+--   → Batch processing sobre múltiplas tabelas
+--
+-- ⚠️  Sempre valida os valores das variáveis antes de injetar
+-- ⚠️  Prefere USING a concatenar valores directamente na string
+-- =============================================================================
+
+-- =============================================================================
+-- EXECUTE IMMEDIATE — Dynamic SQL — Lab Code
+-- Módulo: SQL Programming and Procedural Logic
+-- Secção: SQL Constructs in Databricks
+-- Fonte: Databricks Learning Festival 2026 — Pathway 8
+-- =============================================================================
+-- Lab environment : bronze.*
+-- Community Edition: substitui bronze.orders   -> samples.tpch.orders
+--                                bronze.customer -> samples.tpch.customer
+--                                bronze.nation   -> samples.tpch.nation
+--                                bronze.region   -> samples.tpch.region
+--
+-- ⚠️  EXECUTE IMMEDIATE requer Databricks cluster (all-purpose).
+--     Não é suportado em SQL Warehouses / serverless compute.
+-- =============================================================================
+
+
+-- -----------------------------------------------------------------------------
+-- CELL 24: Padrão base — variáveis de input + query dinâmica
+-- Objectivo: contar orders por prioridade, filtradas por status
+--
+-- Nota do lab: aqui o sqlStr concatena os valores das variáveis
+-- directamente na string (via ||). O USING serve para parameter binding
+-- mas neste exemplo específico os valores já estão inline na string.
+-- -----------------------------------------------------------------------------
+DECLARE OR REPLACE table_name    STRING DEFAULT "bronze.orders";
+DECLARE OR REPLACE status_filter STRING DEFAULT "F";   -- F = Finalized
+
+DECLARE OR REPLACE sqlStr STRING DEFAULT
+  "SELECT o_orderpriority, COUNT(*) AS num_orders FROM " || table_name ||
+  " WHERE o_orderstatus = '" || status_filter || "' GROUP BY o_orderpriority";
+
+-- Executar dinamicamente
+EXECUTE IMMEDIATE sqlStr USING table_name, status_filter;
+
+-- Resultado esperado:
+--   5-LOW          → 730,923
+--   3-MEDIUM       → 730,832
+--   1-URGENT       → 731,447
+--   4-NOT SPECIFIED → 731,011
+--   2-HIGH         → 730,288
+
+
+-- -----------------------------------------------------------------------------
+-- CELL 26 — Iteration 1: Dynamic Column Name and ORDER BY Clause
+-- Objectivo: parametrizar também a coluna de ordenação
+-- Demonstra que QUALQUER parte da query pode ser dinâmica — incluindo
+-- nomes de colunas e cláusulas ORDER BY
+-- -----------------------------------------------------------------------------
+DECLARE OR REPLACE table_name    STRING DEFAULT "bronze.orders";
+DECLARE OR REPLACE order_column  STRING DEFAULT "avg_price";
+
+DECLARE OR REPLACE sqlStr STRING DEFAULT
+  "SELECT o_orderpriority, AVG(o_totalprice) AS avg_price FROM " || table_name ||
+  " GROUP BY o_orderpriority ORDER BY " || order_column || " DESC";
+
+EXECUTE IMMEDIATE sqlStr USING table_name, order_column;
+
+-- Resultado esperado (ordenado por avg_price DESC):
+--   2-HIGH          → 151,271.60
+--   1-URGENT        → 151,159.55
+--   5-LOW           → 151,114.18
+--   4-NOT SPECIFIED → 151,089.99
+--   3-MEDIUM        → 150,990.79
+
+
+-- -----------------------------------------------------------------------------
+-- CELL 28 — Iteration 2: Conditional WHERE Clause (filtro opcional)
+-- Objectivo: adicionar ou omitir o WHERE consoante a variável tem valor ou não
+--
+-- ⭐ Padrão avançado: CASE WHEN dentro da string para lógica condicional
+--    - Se region_filter IS NOT NULL → adiciona o WHERE
+--    - Se region_filter IS NULL     → omite o WHERE (devolve todas as regiões)
+-- -----------------------------------------------------------------------------
+
+-- Com filtro activo: SET VARIABLE sobrescreve o DEFAULT NULL
+DECLARE OR REPLACE region_filter STRING DEFAULT NULL;
+SET VARIABLE region_filter = "EUROPE";
+
+DECLARE OR REPLACE sqlStr STRING DEFAULT
+  "SELECT r.r_name, COUNT(*) AS num_customers " ||
+  "FROM bronze.customer c " ||
+  "JOIN bronze.nation n ON c.c_nationkey = n.n_nationkey " ||
+  "JOIN bronze.region r ON n.n_regionkey = r.r_regionkey " ||
+  CASE WHEN region_filter IS NOT NULL
+    THEN "WHERE r.r_name = '" || region_filter || "' "
+    ELSE ""
+  END ||
+  "GROUP BY r.r_name";
+
+EXECUTE IMMEDIATE sqlStr USING region_filter;
+-- Resultado: EUROPE → 150,306 customers
+
+
+-- Sem filtro: comentar o SET VARIABLE — region_filter fica NULL
+-- O CASE devolve "" → o WHERE é omitido → todas as regiões aparecem
+DECLARE OR REPLACE region_filter STRING DEFAULT NULL;
+-- SET VARIABLE region_filter = "EUROPE";   ← comentado = sem filtro
+
+DECLARE OR REPLACE sqlStr STRING DEFAULT
+  "SELECT r.r_name, COUNT(*) AS num_customers " ||
+  "FROM bronze.customer c " ||
+  "JOIN bronze.nation n ON c.c_nationkey = n.n_nationkey " ||
+  "JOIN bronze.region r ON n.n_regionkey = r.r_regionkey " ||
+  CASE WHEN region_filter IS NOT NULL
+    THEN "WHERE r.r_name = '" || region_filter || "' "
+    ELSE ""
+  END ||
+  "GROUP BY r.r_name";
+
+EXECUTE IMMEDIATE sqlStr USING region_filter;
+-- Resultado (todas as regiões):
+--   ASIA        → 150,409
+--   EUROPE      → 150,306
+--   AMERICA     → 149,877
+--   AFRICA      → 149,175
+--   MIDDLE EAST → 150,233
+
+
+-- =============================================================================
+-- Resumo dos 3 padrões do lab:
+--
+--   Cell 24: variável no FROM e no WHERE  → tabela e filtro dinâmicos
+--   Cell 26: variável no ORDER BY         → coluna de ordenação dinâmica
+--   Cell 28: CASE WHEN na string          → cláusula WHERE opcional
+--
+-- Qualquer parte da query pode ser dinâmica:
+--   FROM, WHERE, ORDER BY, GROUP BY, SELECT columns, JOIN conditions
+--
+-- SET VARIABLE → sobrescreve um DEFAULT declarado anteriormente
+-- CASE WHEN dentro da string → lógica condicional na construção da query
+-- =============================================================================
