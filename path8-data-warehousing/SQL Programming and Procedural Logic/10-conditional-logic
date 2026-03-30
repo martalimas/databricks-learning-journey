@@ -1,0 +1,131 @@
+# SQL Scripting in Databricks — Conditional Logic in SQL Scripts
+
+> **Pathway 8 · SQL Programming and Procedural Logic**  
+> Tópico: Conditional Logic — `IF...THEN...ELSE` e `CASE`
+
+---
+
+## O que é lógica condicional em SQL scripting?
+
+Permite que o script tome decisões em runtime — validar valores, ramificar a execução, ou rotular output de forma diferente consoante uma condição. É o que torna os scripts verdadeiramente dinâmicos e data-driven.
+
+Há duas construções:
+
+| Construção | Onde vive | Para quê |
+|---|---|---|
+| `IF...THEN...ELSEIF...ELSE...END IF` | Dentro de `BEGIN...END` | Executar **statements SQL diferentes** consoante uma condição |
+| `CASE` | Dentro de um `SELECT` | Escolher um **valor** consoante uma condição (mais compacto) |
+
+> **Regra:** Toda a lógica condicional tem de viver dentro de um bloco `BEGIN...END`. Não é permitida fora de compound statements.
+
+---
+
+## IF...THEN...ELSEIF...ELSE
+
+### Sintaxe
+
+```sql
+IF <condição> THEN
+    <statement>;
+ELSEIF <outra condição> THEN
+    <statement>;
+ELSE
+    <statement>;
+END IF;
+```
+
+- `ELSEIF` é opcional e pode repetir-se para múltiplas condições
+- `ELSE` é o fallback — corre se nenhuma condição anterior for verdadeira
+- `END IF;` é **obrigatório** — sem ele o script falha ao fazer parse
+
+### Exemplo completo (progressão dos slides)
+
+O exemplo usa uma variável para guardar o segmento de mercado de um cliente e depois ramifica a execução com base nesse valor.
+
+```sql
+BEGIN
+
+    -- 1. Declarar a variável
+    DECLARE cust_priority STRING;
+
+    -- 2. Atribuir o valor via scalar subquery
+    SET cust_priority = (
+        SELECT c_mktsegment
+        FROM customer
+        WHERE c_custkey = 100
+    );
+
+    -- 3. Ramificar com IF
+    IF cust_priority = 'AUTOMOBILE' THEN
+        SELECT 'Targeted marketing campaign: Luxury cars' AS recommendation;
+
+    ELSEIF cust_priority = 'BUILDING' THEN
+        SELECT 'Targeted marketing campaign: Construction equipment' AS recommendation;
+
+    ELSE
+        SELECT 'Generic customer engagement strategy' AS recommendation;
+
+    END IF;
+
+END;
+```
+
+**O que acontece aqui, passo a passo:**
+
+1. `DECLARE` reserva o espaço para `cust_priority` (tipo `STRING`)
+2. `SET` vai à tabela `customer`, filtra pelo cliente 100, e guarda o seu segmento de mercado na variável
+3. O `IF` avalia o valor da variável e executa **um SELECT diferente** consoante o resultado
+
+---
+
+## Nota importante: IF executa statements completos
+
+Cada ramo do `IF` pode correr um **statement SQL completo** — não apenas retornar um valor.  
+Isto distingue o `IF` do `CASE`: o `IF` controla *o que o script faz*, enquanto o `CASE` controla *que valor aparece numa coluna*.
+
+---
+
+## CASE — versão compacta para valores numa SELECT
+
+O `CASE` é usado dentro de um `SELECT` quando só precisas de escolher um valor, não de ramificar a execução inteira.
+
+```sql
+BEGIN
+
+    SELECT
+        c_custkey,
+        c_mktsegment,
+        CASE c_mktsegment
+            WHEN 'AUTOMOBILE' THEN 'Targeted marketing campaign: Luxury cars'
+            WHEN 'BUILDING'   THEN 'Targeted marketing campaign: Construction equipment'
+            ELSE                   'Generic customer engagement strategy'
+        END AS recommendation
+    FROM customer;
+
+END;
+```
+
+> O `CASE` produz exactamente o mesmo output do exemplo de `IF` acima — mas como uma coluna calculada para todas as linhas, em vez de um resultado condicional para um único cliente.
+
+---
+
+## Quando usar IF vs. CASE
+
+| Situação | Usa |
+|---|---|
+| Queres correr queries diferentes dependendo de uma condição | `IF...THEN...ELSE` |
+| Queres lançar um alerta, validar um valor, ou decidir o próximo passo | `IF...THEN...ELSE` |
+| Queres adicionar uma coluna calculada com rótulos/categorias | `CASE` |
+| A lógica é simples e está dentro de um `SELECT` | `CASE` |
+
+---
+
+## Padrão típico: variável + IF
+
+Este padrão aparece constantemente em validation logic, rule-driven alerts, e scenario-based execution:
+
+```
+DECLARE variável  →  SET com scalar subquery  →  IF ramifica com base no valor
+```
+
+O script reage ao que está nos dados em runtime — sem precisar de saber o valor antecipadamente.
