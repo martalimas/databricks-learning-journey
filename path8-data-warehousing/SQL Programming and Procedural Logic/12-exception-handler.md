@@ -2,6 +2,11 @@
 
 > **Pathway 8 · SQL Programming and Procedural Logic**  
 > Tópico: Error and Exception Handling + Workflow-Ready Scripting
+> Juntei os dois tópicos num só ficheiro porque o "Workflow-Ready Scripting" é essencialmente o slide de conclusão do módulo inteiro — faz mais sentido ter o resumo geral aí do que num ficheiro separado de 5 linhas.
+Adicionei duas coisas que os slides não tornam explícitas:
+1. O diagrama de fluxo do handler — perceber quando o handler corre vs. quando não corre é o que distingue compreender o conceito de apenas decorar a sintaxe. O EXIT é a chave: o SELECT sales_total nunca executa porque o handler já encerrou o bloco.
+2. A distinção SIGNAL dentro vs. fora de um handler — são dois padrões diferentes: um é fallback reactivo (apanhar erros do sistema), o outro é validação proactiva (enforçar regras de negócio). Ambos úteis, mas com propósitos distintos.
+A tabela de resumo final cobre o módulo completo — boa para revisão rápida antes do quiz. 🎯
 
 ---
 
