@@ -1,0 +1,87 @@
+-- ============================================================
+-- SQL Scripting in Databricks
+-- Pathway 8 · SQL Programming and Procedural Logic
+-- Demo: Control Flow with Looping Constructs
+-- Exercise: Iterate Through Part Keys and Skip Zero Quantities
+-- ============================================================
+-- Goal: Loop through the first 5 partkey values in lineitem,
+--       output partkey and quantity for each,
+--       but SKIP any row where quantity is 0 (using ITERATE).
+--
+-- Replace <user_catalog_name> with your actual catalog name
+-- ============================================================
+-- LOOP ANATOMY (ordem de execução por iteração):
+--   1. LEAVE check  → sai se contador ultrapassou o limite
+--   2. ITERATE check → salta se não há linhas com quantity > 0
+--   3. SELECT        → output dos dados válidos
+--   4. SET i = i + 1 → incremento do contador
+-- ============================================================
+
+-- Use a loop to iterate through 5 partkey values
+-- Skip any part where quantity is 0
+-- Replace <user_catalog_name> with your actual catalog name
+BEGIN
+
+    -- Step 1: Declare counter and loop max
+    -- i     = contador actual (começa em 1)
+    -- Sem max_orders desta vez — o limite (5) está hard-coded no IF
+    DECLARE i INT DEFAULT 1;
+
+    -- Step 2: Start labeled loop
+    -- O label 'part_loop' permite ao LEAVE e ITERATE
+    -- especificar exactamente qual loop afectam
+    part_loop: LOOP
+
+        -- Step 3: Define LEAVE condition
+        -- Se i > 5, saímos do loop — processámos os 5 partkeys
+        IF i > 5 THEN
+            LEAVE part_loop;
+        END IF;
+
+        -- Step 4: Skip if l_quantity is zero using ITERATE
+        -- Verifica se existe pelo menos uma linha com quantity > 0
+        -- para o partkey actual. Se não existir (COUNT = 0),
+        -- incrementa o contador e salta para a próxima iteração.
+        -- Nota: o SET i = i + 1 tem de vir ANTES do ITERATE,
+        -- caso contrário o contador nunca avança → loop infinito!
+        IF (SELECT COUNT(*)
+            FROM <user_catalog_name>.bronze.lineitem
+            WHERE l_partkey = i
+              AND l_quantity > 0) = 0 THEN
+            SET i = i + 1;
+            ITERATE part_loop;
+        END IF;
+
+        -- Step 5: Output valid l_partkey and l_quantity
+        -- Só chegamos aqui se o partkey tem linhas com quantity > 0
+        SELECT l_partkey, l_quantity
+        FROM <user_catalog_name>.bronze.lineitem
+        WHERE l_partkey = i;
+
+        -- Step 6: Increment counter
+        SET i = i + 1;
+
+    -- Step 7: End loop
+    END LOOP part_loop;
+
+END;
+
+-- ============================================================
+-- PONTOS CRÍTICOS DESTE EXERCÍCIO
+-- ============================================================
+-- 1. SET i = i + 1 ANTES do ITERATE (step 4)
+--    Se não incrementares antes de ITERATE, o contador fica
+--    parado e o loop corre para sempre no mesmo partkey.
+--
+-- 2. ITERATE vs LEAVE
+--    ITERATE part_loop → salta para o início do próximo ciclo
+--    LEAVE   part_loop → sai do loop completamente
+--
+-- 3. O COUNT(*) subquery dentro do IF
+--    É uma scalar subquery — retorna um único valor (0 ou N).
+--    A condição = 0 significa "não há linhas válidas para este i".
+--
+-- 4. Labels são opcionais mas necessários com loops aninhados
+--    Sem label, LEAVE/ITERATE afectam o loop mais próximo.
+--    Com label, és explícito — mais seguro e mais legível.
+-- ============================================================
