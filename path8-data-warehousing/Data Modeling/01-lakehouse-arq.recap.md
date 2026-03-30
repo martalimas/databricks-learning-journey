@@ -1,204 +1,178 @@
-# Data Modeling Strategies — Part 1: Lakehouse Foundation
+# Data Modeling Strategies — Part 2: Why Model + DWH Foundations
 
 > **Module:** Data Modeling Strategies  
 > **Source:** Databricks Learning Festival 2026 — Pathway 8: Data Warehousing Practitioner  
-> **Scope of these notes:** Intro + Lakehouse Architecture Recap (foundation slides before Inmon/Kimball/Data Vault)
+> **Scope:** DWH Data Modeling rationale, methodology overview, logical modeling concepts, DWH build process
 
 ---
 
-## Objectives
+## Why Model? — DWH Data Modeling
 
-By the end of this module you should be able to:
+A data warehouse is used by **business users** to evaluate and make business decisions.  
+Data warehouse data needs to be modeled to:
 
-- Understand **Bill Inmon's top-down (3NF)** approach  
-- Map **Inmon's EDW concepts** to Databricks medallion layers  
-- Summarise **Kimball's bottom-up, star schema-driven** approach (facts/dimensions)  
-- Illustrate how **star schemas integrate with the Lakehouse**  
-- Understand **Data Vault 2.0's** Hubs, Links, and Satellites for agile schema evolution  
-- Compare **Data Vault to Inmon/Kimball**
+- Correctly **represent the business**
+- Ensure that insights and decisions based on the data warehouse are **impactful**
 
----
+### How?
 
-## Content Map
-
-```
-Inmon's Corporate        Kimball's Dimensional      Data Vault 2.0
-Information Factory  →   Modeling              →
-─────────────────────    ──────────────────────    ──────────────────────
-Overview of Inmon        Fact vs. Dimension;        Hubs (business keys),
-methodology;             Conformed dimensions,      Links (relationships),
-Strengths (governance,   SCD types; Kimball vs.     Satellites (attributes);
-single source of truth)  medallion alignment;       TPC-H mapping example;
-vs. limitations          Surrogate keys &           Strengths (historization,
-                         dimension creation;        incremental loads)
-                         Fact table referencing     vs. complexity
-                         dimension keys
-```
-
----
-
-## Lakehouse Architecture Recap
-
-> *This module builds on top of Lakehouse principles — all modeling decisions are shaped by the Lakehouse framework.*
-
-| Principle | What it means for data modeling |
+| Step | What it involves |
 |---|---|
-| Modeling decisions depend on governance, processing & storage layers | Medallion Architecture (Bronze → Silver → Gold) dictates **where** and **how** data is transformed |
-| Unity Catalog enforces governance & interoperability | Schema consistency, lineage tracking, and access control impact how we model data across domains |
-| Bridging AI and BI | Data models must serve **both** structured analytics (BI) and feature engineering (AI/ML) workloads |
+| Understand the business | Its actors, relationships, processes, requirements |
+| Create a logical data model | Formal model of the organisation's business processes and needs |
+| Ensure data quality | Accurate, consistent, and well-organised |
+| Enable BI support | Analytics, reporting, and effective business intelligence |
+
+**Modeling flow:**
+
+```
+Business Model          →   Logical Model         →   DWH Implementation    →   BI, Analytics
+(processes, actors,         (formal business           (technology-specific)      & Reporting
+ relationships,              model, technology-
+ requirements)               agnostic)
+```
 
 ---
 
-## Core Principles & Medallion Architecture
+## Data Modeling Methods — Three Schools of Thought
 
-### The Lakehouse Combines Data Lakes & Warehouses
+Historically, three dominant methodologies for data warehousing practitioners:
 
-- Eliminates silos by supporting both **structured and unstructured** data in a single platform.
+| Method | Author | Book | Year |
+|---|---|---|---|
+| **Top-down approach** | Bill Inmon | *Building the Data Warehouse* | 1992 |
+| **Bottom-up approach** | Ralph Kimball | *The Data Warehouse Toolkit* | 1996 |
+| **Data Vault 2.0** | Dan Linstedt | *Building a Scalable Data Warehouse with Data Vault 2.0* | 2015 |
 
-### Medallion Architecture (Bronze → Silver → Gold)
+---
 
-| Layer | Role | Key characteristics |
+## Data Warehousing — Purpose of Modeling
+
+```
+                        Business Requirements
+                          (Information Need)
+                                 │
+              ┌──────────────────┼─────────────────────┐
+              │   Data Warehouse Environment            │
+              │                                         │
+              │   ┌─────────────────────────────────┐  │
+              │   │     Business Information Model  │  │
+              │   └───────┬──────────────┬──────────┘  │
+              │           │              │              │
+              │   ┌───────▼──────┐  ┌───▼──────────┐  │
+              │   │ DWH Logical  │  │ Data Marts   │  │
+              │   │ Data Model   │  │ Logical DM   │  │
+              │   │    (LDM)     │  │    (LDM)     │  │
+              │   └───────┬──────┘  └──────┬───────┘  │
+              │           │                │           │
+Sources ──►  │   ┌───────▼──────┐  ┌──────▼───────┐  │  ──► Apps
+(RDBMS,      │   │  Physical    │  │  Data Mart   │  │  ──► BI Tools
+ Files/Logs, │   │  Staging Mdl │  │              │  │
+ Biz Apps,   │   └──────────────┘  └──────────────┘  │
+ Clouds)     └──────────────────────────────────────────┘
+             Source    Ingest    Integration   Delivery
+```
+
+---
+
+## Context for Concepts
+
+> The Inmon approach provides a **methodology-agnostic conceptual foundation** for data modeling.
+
+Key concepts originating with Inmon — such as the **logical model** — translate effectively into the terminologies of competing methodologies (ontologies and taxonomies used in Kimball and Data Vault).
+
+This means: learn Inmon's vocabulary once, apply it everywhere.
+
+---
+
+## Logical Data Modeling — Key Terms
+
+| Term | Definition |
+|---|---|
+| **Entity** | Person, place, thing, or concept about which you wish to record facts |
+| **Attribute** | A non-decomposable, atomic piece of information describing an entity |
+| **Non-Decomposable** | The smallest unit of information you will want to reference |
+| **Business rules** | Specifications that preserve the integrity of the LDM by governing which values attributes may assume |
+
+### Business Rules — Two Categories
+
+- **Key business rules** — the identification of unique records
+- **Domain business rules** — validation of attribute values
+
+---
+
+## Logical Data Modeling — Optimal Approach
+
+A good logical data model should satisfy six qualities:
+
+| # | Quality | Definition |
 |---|---|---|
-| **Bronze** | Raw ingestion | No processing; data kept to fix mistakes; historical record-keeping |
-| **Silver** | Curated / Cleansed | Cleaned, conformed & enriched; directly queryable; PII masking/redaction |
-| **Gold** | Final / Optimised | Denormalised, read-optimised; project/use-case specific; supports BI, ML & analytics |
-
-> **Flow:** Bronze → *(Spark stream)* → Silver → Gold  
-> Gold can branch into: time series resampled & interpolated / feature reduction / feature enhanced
-
-### Schema Enforcement & Governance
-
-- Supports open formats like **Delta Lake** while enforcing schema consistency.
-
-### Built for Performance & Scale
-
-- Combines **ACID transactions**, indexing, and caching for high-performance querying.
+| 1 | **Structural validity** | Consistency with how the business defines and organises information |
+| 2 | **Simplicity** | Ease of understanding |
+| 3 | **No redundancy** | No extraneous information |
+| 4 | **Shareability** | Not specific to one solution — usable by many |
+| 5 | **Extensibility** | Ability to evolve with minimal effect on the existing base |
+| 6 | **Integrity** | Consistency with the way the business uses and manages information values |
 
 ---
 
-## Modern Data and AI Platform — Architecture Overview
+## Building a DWH — The Process
+
+Models are **front-and-center** when building a data warehouse. Three model types:
+
+| Model | Definition |
+|---|---|
+| **Business Information Model (BIM)** | Models actors, their relations, and how they interact — "how the business works" |
+| **Logical Data Model (LDM)** | Model of the data associated with the BIM |
+| **Physical Data Model (PDM)** | The implemented data model derived from the LDM |
+
+Models **describe the business world** and its relationships — they depict business processes within the organisation, and generate the business context required to create meaningful information from data.
+
+### Simplified DWH Process
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  ETL & DS tools              │  BI Tools                    │
-├─────────────────────────────────────────────────────────────┤
-│                     Orchestration                           │
-├────────────────────┬──────────────────────┬─────────────────┤
-│  Ingest & Transform│ Advanced Analytics,  │  Data Warehouse │
-│                    │ ML & AI              │                 │
-├────────────────────┴──────────────────────┴─────────────────┤
-│                       AI Engine                             │
-├─────────────────────────────────────────────────────────────┤
-│                  Data & AI Governance                       │
-├─────────────────────────────────────────────────────────────┤
-│                     Cloud Storage                           │
-└─────────────────────────────────────────────────────────────┘
+ANALYZE                    DESIGN                        BUILD
+──────────────────         ──────────────────────        ──────────────────────
+Business requirements  ──► Data Staging Design      ──► Source Data in Staging
+
+Business Information
+Model
+        │
+        ▼
+Logical Data Model     ──► Physical Data Modeling    ──► DWH Implementation
+
+Data Mart Logical
+Data Model             ──► Data Mart Physical
+                            Data Modeling
+
+Source Data Analysis
+
+Source Mapping         ──► ETL Design               ──► ETL Development
+                                                           ▲
+                                                    (feeds back into
+                                                     DWH Implementation)
 ```
 
-Personas served: **Data Engineer · ML Engineer · Data Scientist · Business Analyst · Business Partners**
+### The Three Phases Explained
+
+| Phase | Characteristics |
+|---|---|
+| **Analyze** | Technology-agnostic — pure business understanding |
+| **Design** | Impacted by technology and understandability for consumers |
+| **Build** | Uses the actual technology to implement the physical model and ETL processes |
 
 ---
 
-## Unity Catalog for Governance & Modeling
+## Data Warehousing in the Lakehouse
 
-> *Unity Catalog is the governance backbone that makes consistent data modeling possible across the Lakehouse.*
+When migrating or implementing a DWH, the data architect is typically **not in a position to dictate** which legacy methodologies the business uses.
 
-| Capability | Detail |
-|---|---|
-| **Centralized Governance** | Manages schemas, tables, and permissions across all workspaces and clouds |
-| **Schema Enforcement & Data Lineage** | Tracks data movement, transformations, and dependencies for model reproducibility |
-| **Fine-Grained Access Control** | Column- and row-level permissions — data is secure yet accessible |
-| **Cross-Domain Interoperability** | Consistent definitions across teams; avoids **schema drift** |
-| **Multi-Cloud & Open Formats** | Governed access to Delta Lake, Parquet, and other formats |
+**The Databricks advantage:**
 
-### Before vs. After Unity Catalog
+- The Lakehouse can easily support the **harmonious coexistence** of as many legacy DWH methodologies as the business requires (Inmon + Kimball + Data Vault can all live together)
+- A well-architected Lakehouse **opens new opportunities** to apply data warehouse data to modern use cases (ML, real-time analytics, AI)
 
-**Before:** Each workspace had its own isolated User/group management, Metastore, Access controls, and Compute resources.
-
-**After (With Unity Catalog):** A single Unity Catalog layer (User/group management + Metastore + Access controls) is shared across all workspaces; each workspace retains its own Compute resources.
-
-### Unity Catalog Object Hierarchy
-
-```
-Databricks Account
-  └── (Unity) Metastore
-        └── Catalog
-              └── Schema
-                    ├── Table
-                    ├── View
-                    ├── Volume
-                    ├── Function
-                    └── Model
-```
-
-**Three-part naming convention:**
-```sql
-SELECT * FROM catalog1.schema1.table1;
-```
-
----
-
-## Data Intelligence & Feature Engineering
-
-> *A well-modeled Lakehouse serves both BI and AI simultaneously.*
-
-| Concept | Key point |
-|---|---|
-| **Lakehouse supports both BI & AI** | SQL analytics, BI dashboards, and AI-driven feature engineering coexist in a unified architecture |
-| **Feature Engineering needs scalable pipelines** | AI workloads require real-time **and** batch processing for feature extraction & transformation |
-| **Feature Stores** | Prevent "training-serving skew" by storing **reusable, versioned features** across ML pipelines |
-| **Data Intelligence** | Combines predictive modeling with historical analytics for deeper insights |
-| **Real-Time & Batch Inference** | ML models leverage streaming + historical data for accurate, real-time decisioning |
-
----
-
-## Mosaic AI — End-to-End AI Capabilities
-
-Databricks' AI layer is called **Mosaic AI** and is fully integrated into the Data Intelligence Platform.
-
-### High-level capability blocks
-
-| Block | What it does |
-|---|---|
-| **MLOps + LLMOps** | Move code, data, and models between development and production; manage models, features, experiments |
-| **Prepare Data** | Discover & transform structured data into features; chunk & create embeddings from unstructured data |
-| **Develop & Evaluate AI** | Train/test algorithms; fine-tune & prompt engineer models; create GenAI agents; evaluate experiments |
-| **Serve Data & AI** | Low-latency model & feature serving; log model requests/responses; query embeddings in Vector DB |
-| **AI Engine** | AI-driven discovery & search, AI Assistant, performance optimization & scaling |
-| **Data & AI Governance** | Security & permissions; model lineage; data monitoring; AI monitoring (metrics, quality, drift) |
-
-### Mosaic AI — Specific Tools (integrated into Lakehouse)
-
-| Area | Mosaic AI tools |
-|---|---|
-| MLOps / LLMOps | MLflow, Asset Bundles (CI/CD) |
-| Develop & Evaluate | AutoML, AI Playground, Model Training, Agent Framework, Agent Evaluation |
-| Serve Apps | AI Gateway, Model Serving, AI Functions, Databricks Apps |
-| Serve Data | Function Serving, Feature Serving, Vector Search |
-| Governance | Model Registry in UC, Feature Store in UC, Tools Catalog in UC, Models in Marketplace |
-| External integrations | HuggingFace, OpenAI, LangChain, … |
-
----
-
-## Key Takeaways — How Lakehouse Architecture Shapes Data Modeling
-
-| Takeaway | Why it matters |
-|---|---|
-| The Lakehouse integrates structured & unstructured data | Supports BI, ML, and real-time analytics in a single framework |
-| Medallion Architecture provides a structured data flow | Bronze (raw) → Silver (cleansed) → Gold (optimised) defines **where** and **how** data models are applied |
-| Unity Catalog enforces governance & consistency | Standardised schemas, access control, and lineage tracking enable trustworthy data modeling |
-| Feature Stores bridge AI & business analytics | Ensures consistent, versioned feature definitions across training & inference workflows |
-| A strong data modeling strategy builds on these principles | Data remains scalable, governed, and optimised for AI & analytics |
-
----
-
-## What's Coming Next
-
-The next sections of the module deep-dive into the three major data modeling strategies, each building on this Lakehouse foundation:
-
-1. **Inmon's Corporate Information Factory** — top-down, 3NF, EDW → mapped to medallion layers  
-2. **Kimball's Dimensional Modeling** — bottom-up, star schemas, facts & dimensions → integrated with Lakehouse  
-3. **Data Vault 2.0** — Hubs / Links / Satellites, agile schema evolution → TPC-H mapping example  
+> Key insight: You don't have to pick one methodology and throw away the rest. The Lakehouse is flexible enough to host all of them simultaneously.
 
 ---
 
