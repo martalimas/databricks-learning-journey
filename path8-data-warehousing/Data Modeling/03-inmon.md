@@ -30,7 +30,7 @@ Fontes de Dados  →  EDW (fonte única de verdade)  →  Data Marts (por área 
 ```
 
 - **Enterprise Data Warehouse (EDW):** serve como a fonte única de verdade
-- **Data Marts:** derivados do EDW para servir funções de negócio específicas
+- **Data Marts:**(equivalentes às tabelas gold) derivados do EDW para servir funções de negócio específicas
 
 ### Vantagens
 
