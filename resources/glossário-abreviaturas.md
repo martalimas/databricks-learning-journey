@@ -133,4 +133,4 @@
 
 ---
 
-*Última atualização: Abril 2026 — Databricks Learning Festival 2026*
+
