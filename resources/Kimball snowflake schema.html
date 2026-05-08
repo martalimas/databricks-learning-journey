@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kimball Snowflake Schema — E-commerce</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<style>
+  :root {
+    --fact: #1a6fc4; --fact-bg: #e8f1fb; --fact-border: #b5d4f4;
+    --conf: #0f6e56; --conf-bg: #e1f5ee; --conf-border: #5dcaa5;
+    --scd: #854f0b; --scd-bg: #faeeda; --scd-border: #ef9f27;
+    --junk: #993c1d; --junk-bg: #faece7; --junk-border: #d85a30;
+    --role: #534ab7; --role-bg: #eeedfe; --role-border: #afa9ec;
+    --snow: #5f5e5a; --snow-bg: #f1efe8; --snow-border: #b4b2a9;
+    --add: #3b6d11; --add-bg: #eaf3de; --add-border: #97c459;
+    --semi: #854f0b; --semi-bg: #faeeda; --semi-border: #ef9f27;
+    --nadd: #993c1d; --nadd-bg: #faece7; --nadd-border: #f0997b;
+    --pk: #185fa5; --pk-bg: #e6f1fb;
+    --fk: #3b6d11; --fk-bg: #eaf3de;
+    --text: #2c2c2a; --text2: #5f5e5a; --text3: #888780;
+    --bg: #ffffff; --bg2: #f7f6f2; --bg3: #f1efe8;
+    --border: #d3d1c7; --border2: #b4b2a9;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg2); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+  .page { max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  h1 { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: var(--text2); margin-bottom: 1.5rem; }
+
+  /* LEGEND */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 2rem; padding: 1rem 1.25rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
+  .legend-title { width: 100%; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text3); margin-bottom: 4px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 20px; border: 1px solid; }
+  .pill-fact  { background: var(--fact-bg);  color: var(--fact);  border-color: var(--fact-border); }
+  .pill-conf  { background: var(--conf-bg);  color: var(--conf);  border-color: var(--conf-border); }
+  .pill-scd   { background: var(--scd-bg);   color: var(--scd);   border-color: var(--scd-border); }
+  .pill-junk  { background: var(--junk-bg);  color: var(--junk);  border-color: var(--junk-border); }
+  .pill-role  { background: var(--role-bg);  color: var(--role);  border-color: var(--role-border); }
+  .pill-snow  { background: var(--snow-bg);  color: var(--snow);  border-color: var(--snow-border); }
+  .pill-add   { background: var(--add-bg);   color: var(--add);   border-color: var(--add-border); }
+  .pill-semi  { background: var(--semi-bg);  color: var(--semi);  border-color: var(--semi-border); }
+  .pill-nadd  { background: var(--nadd-bg);  color: var(--nadd);  border-color: var(--nadd-border); }
+
+  /* SECTION */
+  .section { margin-bottom: 2.5rem; }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); margin-bottom: 1rem; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+
+  /* TABLE CARD */
+  .tcard { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .tcard-head { padding: 10px 14px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tcard-head.fact  { background: var(--fact-bg);  color: var(--fact);  border-bottom: 1px solid var(--fact-border); }
+  .tcard-head.conf  { background: var(--conf-bg);  color: var(--conf);  border-bottom: 1px solid var(--conf-border); }
+  .tcard-head.scd   { background: var(--scd-bg);   color: var(--scd);   border-bottom: 1px solid var(--scd-border); }
+  .tcard-head.junk  { background: var(--junk-bg);  color: var(--junk);  border-bottom: 1px solid var(--junk-border); }
+  .tcard-head.role  { background: var(--role-bg);  color: var(--role);  border-bottom: 1px solid var(--role-border); }
+  .tcard-head.snow  { background: var(--snow-bg);  color: var(--snow);  border-bottom: 1px solid var(--snow-border); }
+
+  .badge { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 12px; white-space: nowrap; }
+  .badge-t  { background: var(--fact-bg);  color: var(--fact);  border: 1px solid var(--fact-border); }
+  .badge-p  { background: var(--conf-bg);  color: var(--conf);  border: 1px solid var(--conf-border); }
+  .badge-a  { background: var(--scd-bg);   color: var(--scd);   border: 1px solid var(--scd-border); }
+  .badge-s2 { background: var(--scd-bg);   color: var(--scd);   border: 1px solid var(--scd-border); }
+  .badge-j  { background: var(--junk-bg);  color: var(--junk);  border: 1px solid var(--junk-border); }
+  .badge-rp { background: var(--role-bg);  color: var(--role);  border: 1px solid var(--role-border); }
+  .badge-sn { background: var(--snow-bg);  color: var(--snow);  border: 1px solid var(--snow-border); }
+
+  .tcard-body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12.5px; }
+  .col-row { display: flex; align-items: center; gap: 8px; padding: 5px 14px; border-top: 1px solid var(--border); }
+  .col-row.subhead { background: var(--bg2); padding: 5px 14px; }
+  .col-row.subhead span { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); }
+  .col-row.note { background: var(--bg2); }
+  .col-row.note span { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 12px; font-style: italic; color: var(--text2); }
+  .col-name { flex: 1; font-weight: 600; color: var(--text); }
+  .col-type { color: var(--text2); font-size: 11.5px; min-width: 65px; }
+  .ann { font-family: -apple-system, sans-serif; font-size: 10.5px; font-weight: 500; padding: 1px 7px; border-radius: 5px; white-space: nowrap; }
+  .ann-pk   { background: var(--pk-bg);    color: var(--pk); }
+  .ann-fk   { background: var(--fk-bg);    color: var(--fk); }
+  .ann-fkrp { background: var(--role-bg);  color: var(--role); }
+  .ann-fkj  { background: var(--junk-bg);  color: var(--junk); }
+  .ann-add  { background: var(--add-bg);   color: var(--add); }
+  .ann-semi { background: var(--semi-bg);  color: var(--semi); }
+  .ann-nadd { background: var(--nadd-bg);  color: var(--nadd); }
+  .ann-scd  { background: var(--scd-bg);   color: var(--scd); }
+  .ann-note { background: var(--bg2);      color: var(--text2); border: 1px solid var(--border); }
+
+  /* ERD */
+  .erd-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; overflow-x: auto; }
+  .erd-wrap svg { max-width: 100%; height: auto; }
+
+  /* CONCEPT NOTES */
+  .notes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 1.5rem; }
+  .note-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; }
+  .note-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .note-card p { font-size: 12.5px; color: var(--text2); line-height: 1.6; }
+  .note-card code { font-family: monospace; background: var(--bg2); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+
+  /* SCD EXAMPLE TABLE */
+  .scd-example { margin-top: 8px; width: 100%; border-collapse: collapse; font-family: 'SF Mono', monospace; font-size: 11.5px; }
+  .scd-example th { background: var(--scd-bg); color: var(--scd); padding: 4px 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  .scd-example td { padding: 4px 8px; border-top: 1px solid var(--border); }
+  .scd-example tr.inactive td { color: var(--text3); }
+  .scd-example tr.active td { color: var(--text); font-weight: 500; }
+  .tag-a { background: var(--add-bg); color: var(--add); padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .tag-i { background: var(--snow-bg); color: var(--text3); padding: 1px 6px; border-radius: 4px; font-size: 10px; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Kimball Snowflake Schema — E-commerce</h1>
+  <p class="subtitle">Todos os conceitos de modelação dimensional: fact tables, conformed/role-playing/junk dimensions, SCD Tipo 2, snowflake chains, medidas aditivas/semi-aditivas/não-aditivas.</p>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="legend-title">Legenda</div>
+    <span class="pill pill-fact">Fact table</span>
+    <span class="pill pill-conf">Conformed dimension</span>
+    <span class="pill pill-role">Role-playing dimension</span>
+    <span class="pill pill-scd">SCD Tipo 2</span>
+    <span class="pill pill-junk">Junk dimension</span>
+    <span class="pill pill-snow">Snowflake sub-dim</span>
+    <span class="pill pill-add">Medida aditiva</span>
+    <span class="pill pill-semi">Medida semi-aditiva</span>
+    <span class="pill pill-nadd">Medida não-aditiva</span>
+  </div>
+
+  <!-- ERD -->
+  <div class="section">
+    <div class="section-title">Diagrama ERD — Snowflake schema</div>
+    <div class="erd-wrap">
+      <div class="mermaid">
+erDiagram
+  dim_data {
+    int data_sk PK
+    date data_completa
+    int ano
+    int mes
+    int trimestre
+    string dia_semana
+    boolean is_feriado
+  }
+  dim_cliente {
+    int cliente_sk PK
+    string cliente_id
+    string nome_cliente
+    string cidade
+    string segmento
+    date data_inicio
+    date data_fim
+    boolean is_activo
+  }
+  dim_produto {
+    int produto_sk PK
+    string produto_id
+    string nome_produto
+    decimal preco_unitario
+    int subcategoria_sk FK
+  }
+  dim_subcategoria {
+    int subcategoria_sk PK
+    string nome_subcategoria
+    int categoria_sk FK
+  }
+  dim_categoria {
+    int categoria_sk PK
+    string nome_categoria
+  }
+  dim_loja {
+    int loja_sk PK
+    string loja_id
+    string nome_loja
+    string tipo_loja
+    int cidade_sk FK
+  }
+  dim_cidade {
+    int cidade_sk PK
+    string nome_cidade
+    int pais_sk FK
+  }
+  dim_pais {
+    int pais_sk PK
+    string codigo_pais
+    string nome_pais
+  }
+  dim_atributos_encomenda {
+    int atributos_sk PK
+    boolean is_prioritario
+    string status_pagamento
+    string canal_venda
+    string tipo_envio
+    boolean tem_desconto
+  }
+  fact_vendas {
+    bigint venda_sk PK
+    int order_date_sk FK
+    int ship_date_sk FK
+    int cliente_sk FK
+    int produto_sk FK
+    int loja_sk FK
+    int atributos_sk FK
+    int quantidade
+    decimal valor_total
+    decimal desconto_valor
+    decimal preco_unitario
+    decimal margem_pct
+  }
+  fact_inventario_snapshot {
+    bigint snapshot_sk PK
+    int data_sk FK
+    int produto_sk FK
+    int loja_sk FK
+    int stock_disponivel
+    int stock_reservado
+    decimal valor_stock
+  }
+  fact_pipeline_encomenda {
+    bigint encomenda_sk PK
+    int data_criacao_sk FK
+    int data_pagamento_sk FK
+    int data_picking_sk FK
+    int data_envio_sk FK
+    int data_entrega_sk FK
+    int cliente_sk FK
+    int loja_sk FK
+    int atributos_sk FK
+    decimal valor_total
+    int nr_itens
+    int dias_criacao_entrega
+  }
+  fact_vendas }o--|| dim_data : "order_date_sk (role 1)"
+  fact_vendas }o--|| dim_data : "ship_date_sk (role 2)"
+  fact_vendas }o--|| dim_cliente : "SCD Tipo 2"
+  fact_vendas }o--|| dim_produto : ""
+  fact_vendas }o--|| dim_loja : ""
+  fact_vendas }o--|| dim_atributos_encomenda : "junk dim"
+  dim_produto }o--|| dim_subcategoria : "snowflake"
+  dim_subcategoria }o--|| dim_categoria : "snowflake"
+  dim_loja }o--|| dim_cidade : "snowflake"
+  dim_cidade }o--|| dim_pais : "snowflake"
+  fact_inventario_snapshot }o--|| dim_data : "conformed"
+  fact_inventario_snapshot }o--|| dim_produto : ""
+  fact_inventario_snapshot }o--|| dim_loja : ""
+  fact_pipeline_encomenda }o--|| dim_data : "5x role-playing"
+  fact_pipeline_encomenda }o--|| dim_cliente : "SCD Tipo 2"
+  fact_pipeline_encomenda }o--|| dim_loja : ""
+  fact_pipeline_encomenda }o--|| dim_atributos_encomenda : "junk dim"
+      </div>
+    </div>
+  </div>
+
+  <!-- DIMENSÕES -->
+  <div class="section">
+    <div class="section-title">Dimensões</div>
+    <div class="grid-auto">
+
+      <!-- dim_data: conformed + role-playing -->
+      <div class="tcard">
+        <div class="tcard-head conf">
+          dim_data
+          <span style="display:flex;gap:5px">
+            <span class="badge badge-p">conformed</span>
+            <span class="badge badge-rp">role-playing</span>
+          </span>
+        </div>
+        <div class="tcard-body">
+          <div class="col-row note"><span>Partilhada entre todas as facts. Usada com aliases diferentes para papéis distintos (order_date, ship_date, data_entrega, etc.)</span></div>
+          <div class="col-row"><span class="col-name">data_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK surrogate</span></div>
+          <div class="col-row"><span class="col-name">data_completa</span><span class="col-type">DATE</span><span class="ann ann-note">natural key</span></div>
+          <div class="col-row"><span class="col-name">dia / mes / ano</span><span class="col-type">INT</span><span class="ann ann-note">hierarquia temporal</span></div>
+          <div class="col-row"><span class="col-name">trimestre</span><span class="col-type">INT</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">dia_semana</span><span class="col-type">VARCHAR</span><span class="ann ann-note">Segunda, Terça…</span></div>
+          <div class="col-row"><span class="col-name">nome_mes</span><span class="col-type">VARCHAR</span><span class="ann ann-note">Janeiro, Fevereiro…</span></div>
+          <div class="col-row"><span class="col-name">is_fim_semana</span><span class="col-type">BOOLEAN</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">is_feriado</span><span class="col-type">BOOLEAN</span><span class="ann ann-note"></span></div>
+          <div class="col-row note"><span>Role-playing: em fact_vendas → order_date_sk e ship_date_sk são duas FKs para a MESMA tabela, com papéis diferentes.</span></div>
+        </div>
+      </div>
+
+      <!-- dim_cliente SCD2 -->
+      <div class="tcard">
+        <div class="tcard-head scd">
+          dim_cliente
+          <span class="badge badge-s2">SCD Tipo 2</span>
+        </div>
+        <div class="tcard-body">
+          <div class="col-row note"><span>Preserva histórico de mudanças de atributos (ex: morada, segmento). Cada mudança cria uma nova linha com novo surrogate key.</span></div>
+          <div class="col-row"><span class="col-name">cliente_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK surrogate</span></div>
+          <div class="col-row"><span class="col-name">cliente_id</span><span class="col-type">VARCHAR</span><span class="ann ann-note">natural key (constante)</span></div>
+          <div class="col-row"><span class="col-name">nome_cliente</span><span class="col-type">VARCHAR</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">email</span><span class="col-type">VARCHAR</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">cidade</span><span class="col-type">VARCHAR</span><span class="ann ann-scd">atributo rastreado</span></div>
+          <div class="col-row"><span class="col-name">segmento</span><span class="col-type">VARCHAR</span><span class="ann ann-scd">atributo rastreado</span></div>
+          <div class="col-row"><span class="col-name">data_inicio</span><span class="col-type">DATE</span><span class="ann ann-scd">início da versão</span></div>
+          <div class="col-row"><span class="col-name">data_fim</span><span class="col-type">DATE</span><span class="ann ann-scd">NULL = activo</span></div>
+          <div class="col-row"><span class="col-name">is_activo</span><span class="col-type">BOOLEAN</span><span class="ann ann-scd">flag de versão activa</span></div>
+          <div class="col-row note"><span>Exemplo de dados:</span></div>
+          <table class="scd-example">
+            <tr><th>sk</th><th>cliente_id</th><th>cidade</th><th>data_inicio</th><th>data_fim</th><th>activo</th></tr>
+            <tr class="inactive"><td>1</td><td>C001</td><td>Lisboa</td><td>2020-01-01</td><td>2024-03-15</td><td><span class="tag-i">N</span></td></tr>
+            <tr class="active"><td>2</td><td>C001</td><td>Porto</td><td>2024-03-16</td><td>NULL</td><td><span class="tag-a">S</span></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- dim_atributos junk -->
+      <div class="tcard">
+        <div class="tcard-head junk">
+          dim_atributos_encomenda
+          <span class="badge badge-j">junk</span>
+        </div>
+        <div class="tcard-body">
+          <div class="col-row note"><span>Agrupa flags e indicadores de baixa cardinalidade. Evita ter essas colunas avulsas na fact table. Cada combinação única = 1 linha.</span></div>
+          <div class="col-row"><span class="col-name">atributos_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK surrogate</span></div>
+          <div class="col-row"><span class="col-name">is_prioritario</span><span class="col-type">BOOLEAN</span><span class="ann ann-note">baixa cardinalidade</span></div>
+          <div class="col-row"><span class="col-name">status_pagamento</span><span class="col-type">VARCHAR</span><span class="ann ann-note">pago/pendente/cancelado</span></div>
+          <div class="col-row"><span class="col-name">canal_venda</span><span class="col-type">VARCHAR</span><span class="ann ann-note">web/loja/app/telefone</span></div>
+          <div class="col-row"><span class="col-name">tipo_envio</span><span class="col-type">VARCHAR</span><span class="ann ann-note">standard/expresso/c&amp;c</span></div>
+          <div class="col-row"><span class="col-name">tem_desconto</span><span class="col-type">BOOLEAN</span><span class="ann ann-note">baixa cardinalidade</span></div>
+          <div class="col-row note"><span>A fact table tem apenas 1 FK (atributos_sk) em vez de 5 colunas avulsas. Mais limpo e mais fácil de filtrar.</span></div>
+        </div>
+      </div>
+
+      <!-- Snowflake produto -->
+      <div class="tcard">
+        <div class="tcard-head snow">
+          dim_produto / dim_subcategoria / dim_categoria
+          <span class="badge badge-sn">snowflake</span>
+        </div>
+        <div class="tcard-body">
+          <div class="col-row note"><span>Hierarquia normalizada: produto → subcategoria → categoria. Em star schema estaria tudo desnormalizado em dim_produto.</span></div>
+          <div class="col-row subhead"><span>dim_categoria</span></div>
+          <div class="col-row"><span class="col-name">categoria_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">categoria_id</span><span class="col-type">VARCHAR</span><span class="ann ann-note">natural key</span></div>
+          <div class="col-row"><span class="col-name">nome_categoria</span><span class="col-type">VARCHAR</span><span class="ann ann-note">Electrónica, Vestuário…</span></div>
+          <div class="col-row subhead"><span>dim_subcategoria</span></div>
+          <div class="col-row"><span class="col-name">subcategoria_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">nome_subcategoria</span><span class="col-type">VARCHAR</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">categoria_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK → dim_categoria</span></div>
+          <div class="col-row subhead"><span>dim_produto</span></div>
+          <div class="col-row"><span class="col-name">produto_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">nome_produto</span><span class="col-type">VARCHAR</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">marca</span><span class="col-type">VARCHAR</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">preco_unitario</span><span class="col-type">DECIMAL</span><span class="ann ann-nadd">não-aditiva ⚠</span></div>
+          <div class="col-row"><span class="col-name">subcategoria_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK → dim_subcateg.</span></div>
+        </div>
+      </div>
+
+      <!-- Snowflake loja -->
+      <div class="tcard">
+        <div class="tcard-head snow">
+          dim_loja / dim_cidade / dim_pais
+          <span class="badge badge-sn">snowflake</span>
+        </div>
+        <div class="tcard-body">
+          <div class="col-row note"><span>Hierarquia geográfica normalizada: loja → cidade → país. Permite drill-down geográfico nos relatórios.</span></div>
+          <div class="col-row subhead"><span>dim_pais</span></div>
+          <div class="col-row"><span class="col-name">pais_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">codigo_pais</span><span class="col-type">VARCHAR</span><span class="ann ann-note">PT, ES, FR…</span></div>
+          <div class="col-row"><span class="col-name">nome_pais</span><span class="col-type">VARCHAR</span><span class="ann ann-note"></span></div>
+          <div class="col-row subhead"><span>dim_cidade</span></div>
+          <div class="col-row"><span class="col-name">cidade_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">nome_cidade</span><span class="col-type">VARCHAR</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">pais_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK → dim_pais</span></div>
+          <div class="col-row subhead"><span>dim_loja</span></div>
+          <div class="col-row"><span class="col-name">loja_sk</span><span class="col-type">INT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">nome_loja</span><span class="col-type">VARCHAR</span><span class="ann ann-note"></span></div>
+          <div class="col-row"><span class="col-name">tipo_loja</span><span class="col-type">VARCHAR</span><span class="ann ann-note">física/online/parceiro</span></div>
+          <div class="col-row"><span class="col-name">cidade_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK → dim_cidade</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- FACT TABLES -->
+  <div class="section">
+    <div class="section-title">Fact Tables</div>
+    <div class="grid-3">
+
+      <!-- fact_vendas -->
+      <div class="tcard">
+        <div class="tcard-head fact">
+          fact_vendas
+          <span class="badge badge-t">transactional</span>
+        </div>
+        <div class="tcard-body">
+          <div class="col-row note"><span>Grain: 1 linha por item de linha de encomenda. O nível de detalhe mais fino — cada produto de cada encomenda.</span></div>
+          <div class="col-row"><span class="col-name">venda_sk</span><span class="col-type">BIGINT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">order_date_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--role-bg);color:var(--role);border:1px solid var(--role-border)">FK dim_data ① role</span></div>
+          <div class="col-row"><span class="col-name">ship_date_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--role-bg);color:var(--role);border:1px solid var(--role-border)">FK dim_data ② role</span></div>
+          <div class="col-row"><span class="col-name">cliente_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK dim_cliente</span></div>
+          <div class="col-row"><span class="col-name">produto_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK dim_produto</span></div>
+          <div class="col-row"><span class="col-name">loja_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK dim_loja</span></div>
+          <div class="col-row"><span class="col-name">atributos_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--junk-bg);color:var(--junk);border:1px solid var(--junk-border)">FK junk dim</span></div>
+          <div class="col-row subhead"><span>Medidas</span></div>
+          <div class="col-row"><span class="col-name">quantidade</span><span class="col-type">INT</span><span class="ann ann-add">aditiva ✓</span></div>
+          <div class="col-row"><span class="col-name">valor_total</span><span class="col-type">DECIMAL</span><span class="ann ann-add">aditiva ✓</span></div>
+          <div class="col-row"><span class="col-name">desconto_valor</span><span class="col-type">DECIMAL</span><span class="ann ann-add">aditiva ✓</span></div>
+          <div class="col-row"><span class="col-name">preco_unitario</span><span class="col-type">DECIMAL</span><span class="ann ann-nadd">não-aditiva ⚠</span></div>
+          <div class="col-row"><span class="col-name">margem_pct</span><span class="col-type">DECIMAL</span><span class="ann ann-nadd">não-aditiva ⚠</span></div>
+        </div>
+      </div>
+
+      <!-- fact_inventario_snapshot -->
+      <div class="tcard">
+        <div class="tcard-head fact">
+          fact_inventario_snapshot
+          <span class="badge badge-p">periodic snapshot</span>
+        </div>
+        <div class="tcard-body">
+          <div class="col-row note"><span>Grain: 1 linha por produto × loja × dia. Captura o estado do inventário no fim de cada dia — mesmo sem movimento.</span></div>
+          <div class="col-row"><span class="col-name">snapshot_sk</span><span class="col-type">BIGINT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">data_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK dim_data (conformed)</span></div>
+          <div class="col-row"><span class="col-name">produto_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK dim_produto</span></div>
+          <div class="col-row"><span class="col-name">loja_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK dim_loja</span></div>
+          <div class="col-row subhead"><span>Medidas</span></div>
+          <div class="col-row"><span class="col-name">stock_disponivel</span><span class="col-type">INT</span><span class="ann ann-semi">semi-aditiva</span></div>
+          <div class="col-row"><span class="col-name">stock_reservado</span><span class="col-type">INT</span><span class="ann ann-semi">semi-aditiva</span></div>
+          <div class="col-row"><span class="col-name">valor_stock</span><span class="col-type">DECIMAL</span><span class="ann ann-semi">semi-aditiva</span></div>
+          <div class="col-row note"><span>Semi-aditiva: pode somar por produto ou por loja ✓ — mas NÃO por tempo (stock jan + stock fev ≠ stock acumulado).</span></div>
+        </div>
+      </div>
+
+      <!-- fact_pipeline_encomenda -->
+      <div class="tcard">
+        <div class="tcard-head fact">
+          fact_pipeline_encomenda
+          <span class="badge badge-a">accumulating snapshot</span>
+        </div>
+        <div class="tcard-body">
+          <div class="col-row note"><span>Grain: 1 linha por encomenda. A linha é actualizada (OVERWRITE) à medida que a encomenda avança no processo. Datas ficam NULL até a etapa ocorrer.</span></div>
+          <div class="col-row"><span class="col-name">encomenda_sk</span><span class="col-type">BIGINT</span><span class="ann ann-pk">PK</span></div>
+          <div class="col-row"><span class="col-name">data_criacao_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--role-bg);color:var(--role);border:1px solid var(--role-border)">dim_data ① role</span></div>
+          <div class="col-row"><span class="col-name">data_pagamento_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--role-bg);color:var(--role);border:1px solid var(--role-border)">dim_data ② role</span></div>
+          <div class="col-row"><span class="col-name">data_picking_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--role-bg);color:var(--role);border:1px solid var(--role-border)">dim_data ③ role</span></div>
+          <div class="col-row"><span class="col-name">data_envio_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--role-bg);color:var(--role);border:1px solid var(--role-border)">dim_data ④ role</span></div>
+          <div class="col-row"><span class="col-name">data_entrega_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--role-bg);color:var(--role);border:1px solid var(--role-border)">dim_data ⑤ role</span></div>
+          <div class="col-row"><span class="col-name">cliente_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK dim_cliente (SCD2)</span></div>
+          <div class="col-row"><span class="col-name">loja_sk</span><span class="col-type">INT</span><span class="ann ann-fk">FK dim_loja</span></div>
+          <div class="col-row"><span class="col-name">atributos_sk</span><span class="col-type">INT</span><span class="ann ann-fk" style="background:var(--junk-bg);color:var(--junk);border:1px solid var(--junk-border)">FK junk dim</span></div>
+          <div class="col-row subhead"><span>Medidas</span></div>
+          <div class="col-row"><span class="col-name">valor_total</span><span class="col-type">DECIMAL</span><span class="ann ann-add">aditiva ✓</span></div>
+          <div class="col-row"><span class="col-name">nr_itens</span><span class="col-type">INT</span><span class="ann ann-add">aditiva ✓</span></div>
+          <div class="col-row"><span class="col-name">dias_criacao_entrega</span><span class="col-type">INT</span><span class="ann ann-nadd">não-aditiva ⚠</span></div>
+          <div class="col-row"><span class="col-name">dias_envio_entrega</span><span class="col-type">INT</span><span class="ann ann-nadd">não-aditiva ⚠</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- NOTAS CONCEITUAIS -->
+  <div class="section">
+    <div class="section-title">Notas de conceito</div>
+    <div class="notes-grid">
+      <div class="note-card" style="border-left:3px solid var(--conf-border)">
+        <h4 style="color:var(--conf)">Conformed Dimension</h4>
+        <p><code>dim_data</code> é usada por <code>fact_vendas</code>, <code>fact_inventario_snapshot</code> e <code>fact_pipeline_encomenda</code> — sempre com a mesma estrutura e surrogate keys. Garante que um relatório que cruze as três facts tenha datas consistentes. É o que permite drill-across entre data marts.</p>
+      </div>
+      <div class="note-card" style="border-left:3px solid var(--role-border)">
+        <h4 style="color:var(--role)">Role-Playing Dimension</h4>
+        <p>A mesma tabela física <code>dim_data</code> aparece referenciada múltiplas vezes na mesma fact com aliases diferentes: <code>order_date_sk</code>, <code>ship_date_sk</code>. Em <code>fact_pipeline_encomenda</code> aparece 5 vezes. Tipicamente implementado com views: <code>vw_dim_data_envio</code>, <code>vw_dim_data_entrega</code>, etc.</p>
+      </div>
+      <div class="note-card" style="border-left:3px solid var(--scd-border)">
+        <h4 style="color:var(--scd)">SCD Tipo 2</h4>
+        <p><code>dim_cliente</code> preserva histórico completo. Quando um cliente muda de Lisboa para Porto, não se sobrescreve o registo — cria-se um novo com novo <code>cliente_sk</code> e o anterior fica com <code>is_activo = FALSE</code>. As transacções antigas mantêm o link para a versão histórica correcta.</p>
+      </div>
+      <div class="note-card" style="border-left:3px solid var(--junk-border)">
+        <h4 style="color:var(--junk)">Junk Dimension</h4>
+        <p><code>dim_atributos_encomenda</code> combina 5 flags/indicadores de baixa cardinalidade numa única tabela. Em vez de 5 colunas avulsas na fact table (ou 5 mini-dimensões), temos 1 FK que aponta para a combinação correcta de valores. Limpa o schema e facilita filtros.</p>
+      </div>
+      <div class="note-card" style="border-left:3px solid var(--snow-border)">
+        <h4 style="color:var(--snow)">Snowflake Schema</h4>
+        <p>Ao contrário do Star Schema, as dimensões estão normalizadas em sub-tabelas. <code>dim_produto</code> não tem as colunas de categoria inline — aponta para <code>dim_subcategoria</code>, que por sua vez aponta para <code>dim_categoria</code>. O mesmo para a hierarquia geográfica. Mais joins, menos redundância.</p>
+      </div>
+      <div class="note-card" style="border-left:3px solid var(--fact-border)">
+        <h4 style="color:var(--fact)">Tipos de Medidas</h4>
+        <p><strong>Aditivas</strong> (quantidade, valor_total): podem ser somadas em qualquer dimensão. <strong>Semi-aditivas</strong> (stock_disponivel): podem somar por produto/loja mas não por tempo. <strong>Não-aditivas</strong> (preco_unitario, margem_pct, dias_entrega): nunca devem ser somadas directamente — usar AVG, MAX, ou calcular a partir de medidas aditivas.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    fontSize: 13,
+    er: { diagramPadding: 20, layoutDirection: 'TB', minEntityWidth: 100, minEntityHeight: 75, entityPadding: 15 }
+  });
+</script>
+</body>
+</html>
